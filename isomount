@@ -1,0 +1,138 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+# -----------------
+# Author: Knut Zakariassen <www.zakariassen.net> under GPL v2.x+
+NAME = "Isomount"
+VERSION = "0.4.4"
+# -----------------
+# Purpose: program for enkelt å mounte et ISO-diskbilde i debian. 
+# Requires: python3-guizero
+#
+# v. 0.4.4:
+# Lagt til appikon med lisensinfo
+#
+# v. 0.4.0:
+# Oppdatert rutiner for montering / demontering av diskbilde for systemer 
+# som ikke har passordløs sudo (erstattet sudo med pkexec)
+#
+# v. 0.3.1:
+# Første alfaversjon i normal bruk på raspberry pi os / armbian
+# -----------------
+
+# Imports ------------------
+import os
+import subprocess
+import sys
+
+name = "guizero"
+if name in sys.modules:
+    from guizero import App, PushButton, Text, TextBox, Box
+else:
+    print(f"{name!r} is required, but not installed.")
+
+exit(1)
+
+# Global variables ---------
+home_folder = os.path.expanduser('~')
+
+# Functions ----------------
+def get_sfolder(f_val):
+    
+    file_folder = os.path.dirname(f_val)
+
+    if file_folder == "" or file_folder == home_folder: 
+        start_folder = home_folder
+    else:
+        start_folder = file_folder
+    return start_folder
+
+def get_file():
+
+    start_folder = get_sfolder(file_name.value)
+
+    file_name.value = app.select_file(folder=start_folder,
+                                      filetypes=[["ISO image", "*.iso"],["All files", "*.*"]],
+                                      save=False)
+    return file_name.value
+
+def get_folder():
+
+    start_folder = get_sfolder(folder_name.value)
+
+    folder_name.value = app.select_folder(folder=start_folder)
+    return folder_name.value
+
+def check_error(result):
+
+    r_code = result.returncode
+    e_code = result.stderr.decode("utf-8")
+
+    if r_code != 0:
+        app.error(title="ERROR", text=e_code)
+    else:
+        if r_code == 0 and e_code != "":
+            app.warn(title="Warning", text=e_code)
+        else:
+            app.info(title="Success", text="Operation completed!")
+
+def mount_iso():
+    file = file_name.value
+    folder = folder_name.value
+    mnt_cmd = "pkexec mount -o loop '"+file+"' "+folder+"/"
+    
+    if file != "":
+        app.info(title="mounting iso", text="Mounting folder: "+folder)  
+        result = subprocess.run(mnt_cmd, shell = True, capture_output= True)
+        check_error(result)
+          
+def umount_iso():
+    file = file_name.value
+    folder = folder_name.value
+    umnt_cmd = "pkexec umount "+folder+"/"
+
+    if file != "":
+        app.info(title="unmounting iso", text="Unmounting folder: "+folder)
+        result = subprocess.run(umnt_cmd, shell = True, capture_output= True)
+        check_error(result)
+      
+def do_this_when_closed():
+    if app.yesno("Close", "Do you want to quit?"):
+        app.destroy()
+
+# App ----------------------
+app = App("isomount v. "+VERSION, 
+          height=220,
+          width=400)
+app.icon = home_folder+"/.icons/cd-mount.256x256.png" # https://iconduck.com/icons/76627/cd-mount
+
+# App Icon is licensed under the CC0 v.1.0 license and available from the following
+# collection: https://iconduck.com/sets/puppy-linux-icons
+# For more info on the licensing terms, 
+# follow this link: https://choosealicense.com/licenses/cc0-1.0/
+
+
+# Widgets ------------------
+title_box = Box(app, width="fill", align="top", border=True)
+Text(title_box, text="© 2023-24 zakariassen.net")
+
+content_box = Box(app, align="top", width="fill", border=True, layout="grid")
+
+text = Text(content_box, text="Choose ISO Image to mount", grid=[1,1])
+text = Text(content_box, text="File:", grid=[0,2])
+file_name = TextBox(content_box, width=25, grid=[1,2])
+PushButton(content_box, command=get_file, text="Choose file", height=1, width="fill", grid=[2,2])
+
+text = Text(content_box, text="Choose mountpoint", grid=[1,3])
+text = Text(content_box, text="Path:", grid=[0,4])
+folder_name = TextBox(content_box, width=25, grid=[1,4])
+PushButton(content_box, command=get_folder, text="Choose path", height=1, width="fill", grid=[2,4])
+
+buttons_box = Box(app, width="fill", align="bottom", layout="grid")
+PushButton(buttons_box, command=mount_iso, text="Mount", width="fill", grid=[0,0])
+PushButton(buttons_box, command=umount_iso, text="Unmount", width="fill", grid=[1,0])
+PushButton(buttons_box, command=do_this_when_closed, text="Exit", width="fill", grid=[2,0])
+
+app.when_closed = do_this_when_closed
+
+# Display ------------------
+app.display()
